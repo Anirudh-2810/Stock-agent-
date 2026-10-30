@@ -15,8 +15,10 @@ from app.services.backtest_sim import (
     resample_close,
     simulate,
     buy_and_hold_weights,
+    SimConfig,
 )
 from app.services.regime_engine import market_regime, apply_regime
+from app.services.cost_model import summary as cost_summary
 
 US_SYMBOLS = ["AAPL", "MSFT", "NVDA", "AMZN", "JPM", "XOM", "V", "JNJ"]
 IN_SYMBOLS = [
@@ -70,19 +72,25 @@ def run_market(market, symbols, close, high, low, index_close):
     regime_daily = market_regime(index_close)
     regime_weekly = regime_daily.resample(BEST_MONTHS_FRI).last().reindex(weekly.index).ffill().fillna(0.0)
 
-    rows = [(f"buy_and_hold", simulate(weekly, buy_and_hold_weights(weekly)))]
+    cfg = SimConfig(market=market.lower())
+
+    def run(w):
+        return simulate(weekly, w, cfg)
+
+    rows = [(f"buy_and_hold", run(buy_and_hold_weights(weekly)))]
     for name, fn in STRATEGIES:
         try:
             if name == "sma_adx":
                 w = fn(weekly, high=wh, low=wl)
             else:
                 w = fn(weekly)
-            rows.append((f"{name}", simulate(weekly, w)))
-            rows.append((f"{name}+regime", simulate(weekly, apply_regime(w, regime_weekly))))
+            rows.append((f"{name}", run(w)))
+            rows.append((f"{name}+regime", run(apply_regime(w, regime_weekly))))
         except Exception as e:
             rows.append((f"{name} -- ERROR: {e}", None))
 
-    print(f"\n=== {market} (weekly, 10bps/side, max 10%) regime@weekly ===")
+    cs = cost_summary(market.lower())
+    print(f"\n=== {market} (weekly, real {cs['round_trip_pct_on_sample']:.2f}pct round-trip, max 10%) regime@weekly ===")
     print(f"{'strategy':<16} {'total':>8} {'ann':>8} {'vol':>7} {'sharpe':>7} {'maxDD':>8} {'pf':>7} {'trades':>7}")
     for label, m in rows:
         if m is None:

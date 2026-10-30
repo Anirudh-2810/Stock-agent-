@@ -1,13 +1,15 @@
-import numpy as np
-import pandas as pd
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
+import numpy as np
+import pandas as pd
 
 
 @dataclass
 class SimConfig:
     initial_cash: float = 100_000.0
     cost_per_side: float = 0.001
+    market: str = "us"
+    sample_order_value: float = 100_000.0
     max_weight: float = 0.10
     periods_per_year: int = 52
 
@@ -68,13 +70,29 @@ def simulate(
     target_weights: pd.DataFrame,
     cfg: SimConfig = SimConfig(),
 ) -> Dict[str, object]:
+    from app.services.cost_model import COST_MODELS
+
     aligned = target_weights.reindex(close.index).ffill().fillna(0.0).clip(0, cfg.max_weight)
     shifted = aligned.shift(1).fillna(0.0)
     returns_wk = close.pct_change().fillna(0.0)
-    turnover = (shifted - shifted.shift(1)).abs().sum(axis=1)
-    gross = (shifted * returns_wk).sum(axis=1)
-    net = gross - turnover * cfg.cost_per_side
-    equity = (1 + net).cumprod() * cfg.initial_cash
+    delta = shifted - shifted.shift(1)
+    buy_turnover = delta.clip(lower=0).sum(axis=1).fillna(0.0)
+    sell_turnover = (-delta).clip(lower=0).sum(axis=1).fillna(0.0)
+
+    cm = COST_MODELS.get(cfg.market)
+    equity = pd.Series(cfg.initial_cash, index=close.index)
+    values = [cfg.initial_cash]
+    for i, t in enumerate(close.index):
+        gross = float((shifted.loc[t] * returns_wk.loc[t]).sum())
+        if cm is not None:
+            notional = values[-1]
+            cost_b = cm.side_cost_fraction("buy", cfg.sample_order_value) * float(buy_turnover.loc[t]) * notional
+            cost_s = cm.side_cost_fraction("sell", cfg.sample_order_value) * float(sell_turnover.loc[t]) * notional
+            cost = (cost_b + cost_s) / max(values[-1], 1e-9)
+        else:
+            cost = (float(buy_turnover.loc[t]) + float(sell_turnover.loc[t])) * cfg.cost_per_side
+        values.append(values[-1] * (1 + gross) * (1 - cost))
+    equity = pd.Series(values[1:], index=close.index)
 
     metrics = compute_metrics(equity, cfg)
     trade_stats, n_trades = round_trip_stats(close, aligned)
