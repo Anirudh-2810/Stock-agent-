@@ -8,7 +8,7 @@ import traceback
 from app.core.config import settings
 from app.core.database import init_db, engine
 from app.core.redis import get_redis, close_redis
-from app.api.v1 import trading, websocket, data_health, backtest, signals, analysis
+from app.api.v1 import trading, websocket, data_health, backtest, signals, analysis, india
 from app.services.alpaca_ws import alpaca_ws
 from app.services.execution_guards import execution_guards
 from app.tasks.scheduler import init_scheduler, start_scheduler, shutdown_scheduler
@@ -90,6 +90,7 @@ app.include_router(data_health.router)
 app.include_router(backtest.router)
 app.include_router(signals.router)
 app.include_router(analysis.router)
+app.include_router(india.router)
 
 
 @app.get("/health")
