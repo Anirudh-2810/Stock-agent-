@@ -12,8 +12,8 @@ Base = declarative_base()
 
 class Ticker(Base):
     __tablename__ = "tickers"
-    
-    symbol = Column(String(10), primary_key=True)
+
+    symbol = Column(String(20), primary_key=True)
     name = Column(String(255))
     sector = Column(String(100))
     industry = Column(String(100))
@@ -25,9 +25,9 @@ class Ticker(Base):
 
 class OHLCV(Base):
     __tablename__ = "ohlcv"
-    
+
     time = Column(DateTime, primary_key=True)
-    symbol = Column(String(10), primary_key=True)
+    symbol = Column(String(20), primary_key=True)
     open = Column(Numeric(12, 4))
     high = Column(Numeric(12, 4))
     low = Column(Numeric(12, 4))
@@ -44,9 +44,9 @@ class OHLCV(Base):
 
 class Position(Base):
     __tablename__ = "positions"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    symbol = Column(String(10), index=True)
+    symbol = Column(String(20), index=True)
     side = Column(String(10))  # long, short
     qty = Column(Numeric(12, 4))
     avg_entry_price = Column(Numeric(12, 4))
@@ -66,7 +66,7 @@ class Order(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     alpaca_order_id = Column(String(50), unique=True, index=True)
     client_order_id = Column(String(50), index=True)
-    symbol = Column(String(10), index=True)
+    symbol = Column(String(20), index=True)
     side = Column(String(10))  # buy, sell
     type = Column(String(20))  # market, limit, stop, stop_limit
     time_in_force = Column(String(10))  # day, gtc, opg, cls, ioc, fok
@@ -89,7 +89,7 @@ class Fill(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id"), index=True)
     alpaca_trade_id = Column(String(50), unique=True)
-    symbol = Column(String(10), index=True)
+    symbol = Column(String(20), index=True)
     side = Column(String(10))
     qty = Column(Numeric(12, 4))
     price = Column(Numeric(12, 4))
@@ -128,9 +128,8 @@ class CorporateAction(Base):
     __tablename__ = "corporate_actions"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    symbol = Column(String(10), index=True)
-    action_type = Column(String(20))  # split, dividend, merger, spinoff
-    ratio = Column(Numeric(10, 4), nullable=True)  # for splits
+    symbol = Column(String(20), index=True)
+    action_type = Column(String(20))  # split, dividend, merger, spinoffratio = Column(Numeric(10, 4), nullable=True)  # for splits
     amount = Column(Numeric(10, 4), nullable=True)  # for dividends
     ex_date = Column(DateTime, index=True)
     pay_date = Column(DateTime, nullable=True)
@@ -175,10 +174,25 @@ class FundamentalsPointInTime(Base):
     tags_used = Column(JSONB, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     __table_args__ = (
         UniqueConstraint("symbol", "period_end", "filing_date", name="uq_fundamentals_symbol_period_filing"),
         Index("ix_fundamentals_pit_symbol_filing", "symbol", "filing_date"),
         Index("ix_fundamentals_pit_symbol_period", "symbol", "period_end"),
         Index("ix_fundamentals_pit_knowledge_ts", "knowledge_timestamp"),
+    )
+
+
+class FiiDiiFlow(Base):
+    __tablename__ = "fii_dii_flows"
+
+    flow_date = Column(Date, primary_key=True)
+    category = Column(String(20), primary_key=True)
+    buy_value_cr = Column(Numeric(14, 2))
+    sell_value_cr = Column(Numeric(14, 2))
+    net_value_cr = Column(Numeric(14, 2))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_fii_dii_flows_date", "flow_date"),
     )
