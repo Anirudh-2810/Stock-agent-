@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+mlruns/
+
+# Env & secrets
+.env
+.env.local
+
+# Databases
+*.db
+*.sqlite
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
