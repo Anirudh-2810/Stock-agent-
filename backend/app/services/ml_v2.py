@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MLV2Config:
-    horizon_days: int = 5
+    horizon_days: int = 21
     train_size: int = 252
     test_size: int = 63
     step_size: int = 63
@@ -61,6 +61,27 @@ def build_features(close: pd.DataFrame, high: Optional[pd.DataFrame] = None, low
         "f",
     )
     frame = pd.concat(feats, axis=1)
+
+    m21 = momentum(close, 21)
+    m63 = momentum(close, 63)
+    vol_w = volatility(close, 21)
+    rsi_w = rsi(close, 14)
+    def xsec(meta: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+        out = []
+        for k, v in meta.items():
+            out.append(v.rank(axis=1, pct=True).stack().rename(f"x_{k}"))
+        return pd.concat(out, axis=1)
+
+    xsec_frame = xsec(
+        {
+            "mom21": m21,
+            "mom63": m63,
+            "vol21": vol_w,
+            "rsi14": rsi_w,
+            "sma_gap": close / sma(close, 50) - 1,
+        }
+    )
+    frame = pd.concat([frame, xsec_frame], axis=1)
     frame = frame.sort_index()
     return frame
 
@@ -192,6 +213,7 @@ def run_walk_forward(
     base_rates = [r["base_rate"] for r in results]
     aucs = [r["auc"] for r in results]
     summary = {
+        "horizon_days": cfg.horizon_days,
         "n_folds": len(results),
         "mean_auc": float(np.mean(aucs)) if aucs else None,
         "mean_top_decile_hit_rate": float(np.mean(top_decile)) if top_decile else None,

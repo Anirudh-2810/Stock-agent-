@@ -38,7 +38,7 @@ def fetch_panel(symbols):
 
 
 def main():
-    cfg = MLV2Config(test_size=126, step_size=126, model_dir="models/ml_v2")
+    cfg = MLV2Config(test_size=126, step_size=126, horizon_days=5, model_dir="models/ml_v2")
     for market, symbols in [("us", US_SYMBOLS), ("in", IN_SYMBOLS)]:
         close, high, low = fetch_panel(symbols)
         print(f"=== {market}: {close.shape[1]} symbols, {len(close)} days ===")
