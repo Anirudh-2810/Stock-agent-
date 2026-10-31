@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 GuardType = Literal["kill_switch", "rate_limit", "drawdown", "position_limit", "sector_limit"]
 
 GUARD_CONFIGS = {
-    "kill_switch": {"enabled": True},
+    "kill_switch": {"enabled": False},
     "rate_limit": {"max_orders_per_minute": 10},
     "drawdown": {"max_daily_drawdown_pct": 2.0},
     "position_limit": {"max_position_pct": 10.0},
@@ -70,7 +70,7 @@ class ExecutionGuards:
         portfolio_value: float,
         sector: Optional[str] = None,
     ) -> tuple[bool, Optional[str]]:
-        if not await self.is_enabled("kill_switch"):
+        if await self.is_enabled("kill_switch"):
             return False, "Kill switch activated"
         
         if not await self._check_rate_limit():
