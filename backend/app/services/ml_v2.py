@@ -18,7 +18,7 @@ class MLV2Config:
     train_size: int = 252
     test_size: int = 63
     step_size: int = 63
-    purge_gap: int = 5
+    purge_gap: int = 25
     n_estimators: int = 300
     learning_rate: float = 0.05
     max_depth: int = 4
