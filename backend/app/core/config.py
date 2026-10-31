@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
     
     # Scheduler
-    enable_scheduler: bool = Field(default=False, alias="ENABLE_SCHEDULER")
+    enable_scheduler: bool = Field(default=True, alias="ENABLE_SCHEDULER")
     
     class Config:
         env_file = ".env"
