@@ -110,7 +110,7 @@ class MLFeatureEngine:
         
         df = df.dropna(subset=[target_col])
         
-        X = df[feature_cols].fillna(method='ffill').fillna(0)
+        X = df.groupby('symbol')[feature_cols].ffill().fillna(0)
         y_reg = df[target_col]
         y_clf = (df[target_col] > 0).astype(int)
         
