@@ -212,9 +212,46 @@ _mock_redis = None
 
 
 async def get_redis():
-    """Get Redis client, falling back to mock if real Redis unavailable."""
+    """Get Redis client; fail closed in production, mock only in development."""
     global _redis_client, _mock_redis
-    
+
+    if settings.environment == "production":
+        if not REDIS_AVAILABLE:
+            raise RuntimeError("Redis client library unavailable in production")
+        if _redis_client is None:
+            _redis_client = redis.from_url(
+                settings.redis_url,
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=20,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+                retry_on_timeout=False,
+            )
+            await _redis_client.ping()
+        return _redis_client
+
+    # Development fallback to mock
+    if REDIS_AVAILABLE and _redis_client is None:
+        try:
+            _redis_client = redis.from_url(
+                settings.redis_url,
+                encoding="utf-8",
+                decode_responses=True,
+                max_connections=20,
+                socket_connect_timeout=2,
+                socket_timeout=2,
+                retry_on_timeout=False,
+            )
+            await _redis_client.ping()
+            return _redis_client
+        except Exception as e:
+            print("Real Redis unavailable, falling back to mock: " + str(e))
+            _redis_client = None
+
+    if _mock_redis is None:
+        _mock_redis = MockRedis()
+    return _mock_redis
     # Try real Redis first if available
     if REDIS_AVAILABLE and _redis_client is None:
         try:
