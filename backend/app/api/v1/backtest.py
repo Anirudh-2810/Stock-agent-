@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/v1/backtest", tags=["backtest"], dependencies=[D
 @router.post("/run")
 async def run_backtest(
     background_tasks: BackgroundTasks,
-    symbols: List[str] = Query(...),
+    symbols: str = Query(...),
     start_date: date = Query(...),
     end_date: date = Query(...),
     strategy: str = Query("ml_predictions"),
@@ -45,13 +45,17 @@ async def run_backtest(
     oversold: int = Query(30),
     overbought: int = Query(70),
 ):
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not symbol_list:
+        raise HTTPException(status_code=400, detail="No symbols provided")
+
     async for db in get_db():
         ohlcv_query = text("""
             SELECT time, symbol, close FROM ohlcv
             WHERE symbol = ANY(:symbols) AND time BETWEEN :start AND :end
         """)
         result = await db.execute(ohlcv_query, {
-            "symbols": symbols,
+            "symbols": symbol_list,
             "start": start_date,
             "end": end_date,
         })
@@ -64,7 +68,7 @@ async def run_backtest(
         ohlcv_df['time'] = pd.to_datetime(ohlcv_df['time'])
         
         bt_config = BacktestConfig(
-            symbols=symbols,
+            symbols=symbol_list,
             start_date=start_date,
             end_date=end_date,
             initial_cash=initial_cash,
@@ -80,7 +84,7 @@ async def run_backtest(
                 raise HTTPException(status_code=400, detail="model_name required for ML strategy")
             
             features_df = await ml_feature_engine.load_weekly_features(
-                db, symbols, start_date, end_date
+                db, symbol_list, start_date, end_date
             )
             
             if features_df.empty:
@@ -102,7 +106,7 @@ async def run_backtest(
                 columns="symbol",
                 values="prediction",
                 aggfunc="last",
-            ).reindex(columns=symbols)
+            ).reindex(columns=symbol_list)
             
             bt_result = backtester.run_from_predictions(
                 pred_df,

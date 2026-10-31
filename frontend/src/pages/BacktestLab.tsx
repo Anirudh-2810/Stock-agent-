@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { backtestApi } from '../services/api';
 import { Card, Spinner, ErrorState, StatCard } from '../components/ui';
-import type { BacktestResult, BacktestModel } from '../types';
+import type { BacktestRunRequest, BacktestResult, BacktestModel } from '../types';
 
 const STRATEGIES = ['sma_crossover', 'rsi_mean_reversion', 'ml_predictions'];
 
@@ -26,13 +26,16 @@ export function BacktestLab() {
     setLoading(true);
     setError('');
     try {
-      const params = {
+      const params: BacktestRunRequest = {
         symbols,
         start_date: startDate,
         end_date: endDate,
         strategy,
         initial_cash: initialCash,
       };
+      if (strategy === 'ml_predictions') {
+        params.model_name = models[0]?.name ?? 'production';
+      }
       const res = await backtestApi.run(params);
       setResult(res);
     } catch (e) {
