@@ -30,6 +30,15 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info("Database initialized")
         
+        try:
+            from alembic.config import Config
+            from alembic import command
+            alembic_cfg = Config("alembic.ini")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Alembic migrations applied at head")
+        except Exception as e:
+            logger.error(f"Alembic migration failed: {e}")
+        
         redis = await get_redis()
         logger.info("Redis connected")
         
