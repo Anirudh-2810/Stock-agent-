@@ -28,13 +28,17 @@ class AlpacaRESTService:
     
     async def get_account(self) -> AccountResponse:
         account = self.trading_client.get_account()
+        equity = float(account.equity)
+        last_equity = float(account.last_equity)
+        daily_pl = equity - last_equity
+        daily_plpc = (daily_pl / last_equity) if last_equity else 0.0
         return AccountResponse(
             equity=Decimal(str(account.equity)),
             cash=Decimal(str(account.cash)),
             buying_power=Decimal(str(account.buying_power)),
             portfolio_value=Decimal(str(account.portfolio_value)),
-            daily_pl=Decimal(str(account.unrealized_pl)),
-            daily_plpc=Decimal(str(account.unrealized_plpc)),
+            daily_pl=Decimal(str(daily_pl)),
+            daily_plpc=Decimal(str(daily_plpc)),
             positions_count=len(self.trading_client.get_all_positions()),
         )
     
