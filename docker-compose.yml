@@ -18,7 +18,10 @@ services:
     volumes:
       - ./backend:/app
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
@@ -43,5 +46,22 @@ services:
       - redis_data:/data
     command: redis-server --maxmemory 256mb --maxmemory-policy volatile-lru
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-stock_agent}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-stock_agent}
+      - POSTGRES_DB=${POSTGRES_DB:-stock_agent}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stock_agent} -d ${POSTGRES_DB:-stock_agent}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   redis_data:
+  postgres_data:
