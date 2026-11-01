@@ -1,24 +1,15 @@
-# Alpaca WebSocket - disabled on Python 3.14 due to websockets library compatibility issues
-# (websockets library has Python 3.14 compatibility issues with 'extra_headers' parameter)
-import sys
-if sys.version_info >= (3, 14):
+# Alpaca WebSocket - real stream when the alpaca client libs are importable; mock fallback otherwise
+try:
+    from alpaca.data.live import StockDataStream
+    from alpaca.data.enums import DataFeed
+    from alpaca.data.models import Quote, Trade
+    ALPACA_WS_AVAILABLE = True
+except ImportError:
     ALPACA_WS_AVAILABLE = False
     StockDataStream = None
     DataFeed = None
     Quote = None
     Trade = None
-else:
-    try:
-        from alpaca.data.live import StockDataStream
-        from alpaca.data.enums import DataFeed
-        from alpaca.data.models import Quote, Trade
-        ALPACA_WS_AVAILABLE = True
-    except ImportError:
-        StockDataStream = None
-        DataFeed = None
-        Quote = None
-        Trade = None
-        ALPACA_WS_AVAILABLE = False
 
 from app.core.config import settings
 from app.core.redis import get_redis
