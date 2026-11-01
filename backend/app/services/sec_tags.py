@@ -82,10 +82,8 @@ class SECTagResolver:
         self._coverage_stats: Dict[str, Dict] = {}
 
     def extract_metric(self, facts: Dict, metric: str) -> Tuple[Optional[float], Optional[str]]:
-        if metric not in self.mappings:
-            return None, None
-        
-        for tag in self.mappings[metric]:
+        candidates = list(self.mappings.get(metric, [])) + list(self._custom_tags.get(metric, []))
+        for tag in candidates:
             if tag in facts:
                 val = facts[tag]
                 if val is not None:
@@ -93,17 +91,6 @@ class SECTagResolver:
                         return float(val), tag
                     except (ValueError, TypeError):
                         continue
-        
-        if metric in self._custom_tags:
-            for tag in self._custom_tags[metric]:
-                if tag in facts:
-                    val = facts[tag]
-                    if val is not None:
-                        try:
-                            return float(val), tag
-                        except (ValueError, TypeError):
-                            continue
-        
         return None, None
 
     def add_custom_tag(self, metric: str, tag: str):

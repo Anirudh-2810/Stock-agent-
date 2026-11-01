@@ -250,8 +250,6 @@ class XGBoostTrainer:
                 else:
                     mlflow.lightgbm.log_model(self.model, "model")
                 
-                mlflow.log_artifact(model_path)
-            
             model_path = f"models/{self.config.model_type}_{self.config.task}_{run_id}.pkl"
             joblib.dump(self.model, model_path)
             if MLFLOW_AVAILABLE and log_to_mlflow:
