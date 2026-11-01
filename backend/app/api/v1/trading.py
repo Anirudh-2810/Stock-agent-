@@ -12,11 +12,31 @@ from app.models import Order, Position, Fill, AccountSnapshot
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["trading"])
+
+
+async def _track_order_fill(client_order_id, symbol: str, side: str, qty: float, price: float) -> None:
+    if not client_order_id:
+        return
+    try:
+        for _ in range(30):
+            order = await alpaca_rest.get_order_by_client_id(client_order_id)
+            status = str(getattr(order, "status", "") or "")
+            if status in ("FILLED", "CANCELED", "REJECTED", "EXPIRED", "DENIED"):
+                filled_qty = float(getattr(order, "filled_qty", None) or 0)
+                if status == "FILLED" and filled_qty > 0:
+                    await execution_guards.update_position(
+                        symbol=symbol, side=side, qty=filled_qty, price=price
+                    )
+                break
+            await asyncio.sleep(2)
+    except Exception as e:
+        logger.warning(f"Order fill tracking failed for {client_order_id}: {e}")
 
 
 @router.get("/account", response_model=AccountResponse, dependencies=[Depends(verify_api_key)])
@@ -54,8 +74,9 @@ async def place_order(order: OrderRequest, background_tasks: BackgroundTasks):
     result = await alpaca_rest.place_order(order)
     
     background_tasks.add_task(
-        execution_guards.update_position,
-        order.symbol, order.side, float(order.qty), float(current_price)
+        _track_order_fill,
+        getattr(result, "client_order_id", None),
+        order.symbol, order.side, float(order.qty), float(current_price),
     )
     background_tasks.add_task(execution_guards.record_equity, float(account.equity))
     
@@ -80,6 +101,7 @@ async def close_position(symbol: str):
     success = await alpaca_rest.close_position(symbol)
     if not success:
         raise HTTPException(status_code=400, detail="Failed to close position")
+    await execution_guards.clear_position(symbol)
     return {"success": True}
 
 
@@ -88,6 +110,9 @@ async def close_all_positions():
     success = await alpaca_rest.close_all_positions()
     if not success:
         raise HTTPException(status_code=400, detail="Failed to close all positions")
+    positions = await alpaca_rest.get_positions()
+    symbols = [p.symbol for p in positions if p.symbol]
+    await execution_guards.clear_positions(symbols)
     return {"success": True}
 
 

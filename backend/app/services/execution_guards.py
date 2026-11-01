@@ -1,7 +1,7 @@
 from app.core.redis import get_redis
 from app.core.config import settings
 from decimal import Decimal
-from typing import Optional, Literal
+from typing import Any, Dict, List, Optional, Literal
 import json
 import time
 import logging
@@ -188,6 +188,25 @@ class ExecutionGuards:
                 await redis.incrbyfloat(sector_key, qty * price)
             else:
                 await redis.incrbyfloat(sector_key, -(qty * price))
+    
+    async def sync_positions(self, positions: Optional[List[Dict[str, Any]]]) -> None:
+        """Seed Redis position state from Alpaca positions (startup reconciliation)."""
+        redis = await self._get_redis()
+        for pos in positions or []:
+            symbol = pos.get("symbol") if pos else None
+            if not symbol:
+                continue
+            qty = float(pos.get("qty") or 0)
+            await redis.set(f"position:{symbol}", str(qty))
+    
+    async def clear_position(self, symbol: str) -> None:
+        redis = await self._get_redis()
+        await redis.set(f"position:{symbol}", "0")
+    
+    async def clear_positions(self, symbols: Optional[List[str]]) -> None:
+        redis = await self._get_redis()
+        for symbol in symbols or []:
+            await redis.set(f"position:{symbol}", "0")
     
     async def record_equity(self, equity: float):
         redis = await self._get_redis()

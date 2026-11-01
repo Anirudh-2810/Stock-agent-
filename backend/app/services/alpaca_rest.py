@@ -112,6 +112,10 @@ class AlpacaRESTService:
         orders = self.trading_client.get_orders(req)
         return [self._map_order(o) for o in orders]
     
+    async def get_order_by_client_id(self, client_order_id: str) -> Optional[OrderResponse]:
+        order = self.trading_client.get_order_by_client_id(client_order_id)
+        return self._map_order(order)
+    
     async def cancel_order(self, order_id: str) -> bool:
         try:
             self.trading_client.cancel_order_by_id(order_id)

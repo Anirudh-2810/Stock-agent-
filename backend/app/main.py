@@ -10,6 +10,7 @@ from app.core.database import init_db, engine
 from app.core.redis import get_redis, close_redis
 from app.api.v1 import trading, websocket, data_health, backtest, signals, analysis, india
 from app.services.alpaca_ws import alpaca_ws
+from app.services.alpaca_rest import alpaca_rest
 from app.services.execution_guards import execution_guards
 from app.tasks.scheduler import init_scheduler, start_scheduler, shutdown_scheduler
 
@@ -34,6 +35,13 @@ async def lifespan(app: FastAPI):
         
         await execution_guards.initialize()
         logger.info("Execution guards initialized")
+        
+        try:
+            positions = await alpaca_rest.get_positions()
+            await execution_guards.sync_positions(positions)
+            logger.info("Alpaca positions synced into execution guards")
+        except Exception as e:
+            logger.error(f"Position sync failed: {e}")
         
         await alpaca_ws.start()
         logger.info("Alpaca WebSocket started")
