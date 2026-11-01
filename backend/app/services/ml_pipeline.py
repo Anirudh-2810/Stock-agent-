@@ -9,6 +9,7 @@ from app.services.ml_features import ml_feature_engine
 from app.services.xgboost_trainer import XGBoostTrainer, ModelConfig, WalkForwardValidator
 from app.services.model_registry import model_registry
 from app.services.backtest_engine import VectorBTBacktester, BacktestConfig
+from app.services.feature_engine import feature_store
 from app.core.database import async_session_maker
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,37 @@ class MLTrainingPipeline:
         self.train_end = train_end
         self.target_horizon = target_horizon
     
+    async def _attach_technical_indicators(self, db, features_df: pd.DataFrame) -> pd.DataFrame:
+        indicator_cols = ["rsi_14", "macd", "macd_signal", "macd_hist", "bb_pct", "atr_14", "adx_14"]
+        out = features_df.copy()
+        days_needed = max(400, int((self.train_end - self.train_start).days) + 400)
+        for symbol in self.symbols:
+            sym_df = out[out["symbol"] == symbol].sort_values("as_of_date")
+            if sym_df.empty:
+                continue
+            ohlcv = await feature_store.load_ohlcv(db, symbol, days=days_needed)
+            if ohlcv.empty:
+                continue
+            ind = feature_store.engine.compute_all(ohlcv)
+            if ind.empty:
+                continue
+            times = list(ind.index)
+            for _, row in sym_df.iterrows():
+                as_of = pd.Timestamp(row["as_of_date"])
+                pos = None
+                for i, t in enumerate(times):
+                    if t <= as_of:
+                        pos = i
+                    else:
+                        break
+                if pos is None:
+                    continue
+                for col in indicator_cols:
+                    val = ind[col].iloc[pos]
+                    if pd.notna(val):
+                        out.loc[row.name, col] = float(val)
+        return out
+
     async def run_training(
         self,
         model_config: ModelConfig,
@@ -46,6 +78,7 @@ class MLTrainingPipeline:
             logger.info(f"Loaded features: {features_df.shape}")
             
             features_df = ml_feature_engine.add_derived_features(features_df)
+            features_df = await self._attach_technical_indicators(db, features_df)
             
             X, y_reg, y_clf = ml_feature_engine.create_ml_dataset(
                 features_df, target_horizon=self.target_horizon
