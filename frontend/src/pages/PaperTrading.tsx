@@ -14,8 +14,12 @@ import type { UTCTimestamp } from 'lightweight-charts';
 export function PaperTrading() {
   const { setAccount, setPositions, setOrders, setGuards } = useTradingStore();
   const isConnected = useTradingStore(s => s.isConnected);
+  const quotes = useTradingStore(s => s.quotes);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
+
+  const quote = quotes.get(selectedSymbol);
+  const isLive = isConnected && !!quote;
 
   useWebSocketConnection();
 
@@ -39,8 +43,21 @@ export function PaperTrading() {
     loadInitial();
   }, [setAccount, setPositions, setOrders, setGuards]);
 
-  // Generate mock chart data for demo
+  // Live chart from real WS quotes; mock fallback for DEMO mode
   useEffect(() => {
+    if (isLive && quote) {
+      const bar: ChartData = {
+        time: (Date.now() / 1000) as UTCTimestamp,
+        open: quote.bid_price,
+        high: Math.max(quote.bid_price, quote.ask_price),
+        low: Math.min(quote.bid_price, quote.ask_price),
+        close: quote.bid_price,
+        volume: quote.bid_size,
+      };
+      setChartData([bar]);
+      return;
+    }
+
     const generateMockData = (): ChartData[] => {
       const now = Date.now();
       const data: ChartData[] = [];
@@ -61,7 +78,7 @@ export function PaperTrading() {
       return data;
     };
     setChartData(generateMockData());
-  }, []);
+  }, [isLive, quote]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -74,10 +91,10 @@ export function PaperTrading() {
           </div>
           <div className="flex items-center gap-4">
             <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-              isConnected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              isLive ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
             }`}>
-              <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-              {isConnected ? 'Connected' : 'Disconnected'}
+              <span className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500' : 'bg-amber-500'}`} />
+              {isLive ? 'LIVE' : 'DEMO'}
             </span>
           </div>
         </div>
