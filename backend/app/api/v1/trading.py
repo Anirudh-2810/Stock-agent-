@@ -8,12 +8,13 @@ from app.schemas import (
     OrderRequest, OrderResponse, PositionResponse, AccountResponse,
     FillResponse, GuardStatus, GuardUpdate, KillSwitchRequest
 )
-from app.models import Order, Position, Fill, AccountSnapshot
+from app.models import Order, Position, Fill, AccountSnapshot, Ticker
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 import asyncio
 import logging
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ async def get_positions():
 
 
 @router.post("/orders", response_model=OrderResponse, dependencies=[Depends(verify_api_key)])
-async def place_order(order: OrderRequest, background_tasks: BackgroundTasks):
+async def place_order(order: OrderRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     from app.services.alpaca_ws import alpaca_ws
     
     quotes = await alpaca_rest.get_latest_quotes([order.symbol])
@@ -60,12 +61,21 @@ async def place_order(order: OrderRequest, background_tasks: BackgroundTasks):
     current_price = (quotes[0].bid_price + quotes[0].ask_price) / 2
     account = await alpaca_rest.get_account()
     
+    sector = None
+    try:
+        result = await db.execute(select(Ticker).where(Ticker.symbol == order.symbol))
+        tkr = result.scalars().first()
+        sector = tkr.sector if tkr else None
+    except Exception:
+        sector = None
+
     allowed, reason = await execution_guards.check_pre_trade(
         symbol=order.symbol,
         side=order.side,
         qty=float(order.qty),
         current_price=float(current_price),
         portfolio_value=float(account.portfolio_value),
+        sector=sector,
     )
     
     if not allowed:
